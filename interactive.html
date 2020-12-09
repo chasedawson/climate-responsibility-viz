@@ -1,0 +1,870 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Climate Change Responsibility</title>
+	<style>
+        
+        :root {
+            --bubble-color: #15161a;
+            --last-bubble-color: #dc3a22;
+        }
+        
+        body {
+			font-family: Arial, Helvetica, sans-serif;
+			font-size: 12px;
+			background-color: #ffffff;
+			text-align: center;
+		}
+        
+        #title {
+            font-size: 32px;
+            padding: 0px;
+            margin: 0px;
+        }
+        
+        .countryCircle {
+			fill: var(--bubble-color);
+			opacity: 0.05;
+		}
+        
+        .lastCircle {
+            fill: var(--last-bubble-color);
+            opacity: 0.5;
+        }
+        
+        .slidecontainer {
+            display: flex;
+            flex-direction: row;
+            width: 100%; /* Width of the outside container */
+        }
+
+        /* The slider itself */
+        .slider {
+            -webkit-appearance: none;  /* Override default CSS styles */
+            appearance: none;
+            width: 100%; /* Full-width */
+            height: 15px; /* Specified height */
+            border-radius: 5px;
+            background: #5B4D4E; /* Grey background */
+            outline: none; /* Remove outline */
+            opacity: 0.7; /* Set transparency (for mouse-over effects on hover) */
+            -webkit-transition: .2s; /* 0.2 seconds transition on hover */
+            transition: opacity .2s;
+        }
+
+        /* Mouse-over effects */
+        .slider:hover {
+            opacity: 1; /* Fully shown on mouse-over */
+        }
+
+        /* The slider handle (use -webkit- (Chrome, Opera, Safari, Edge) and -moz- (Firefox) to override default look) */
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none; /* Override default look */
+            appearance: none;
+            width: 25px; /* Set a specific slider handle width */
+            height: 25px; /* Slider handle height */
+            border-radius: 50%;
+            background: #dc3a22; 
+            cursor: pointer; /* Cursor on hover */
+        }
+
+        .slider::-moz-range-thumb {
+            width: 25px; /* Set a specific slider handle width */
+            height: 25px; /* Slider handle height */
+            border-radius: 50%;
+            background: #dc3a22; 
+            cursor: pointer; /* Cursor on hover */
+        }
+        
+        /* taken from https://css-tricks.com/making-pure-css-playpause-button/ */
+        .button {
+            border: 0;
+            background: transparent;
+            box-sizing: border-box;
+            width: 0;
+            height: 50px;
+
+            border-color: transparent transparent transparent #202020;
+            transition: 100ms all ease;
+            cursor: pointer;
+
+            /* play state */
+            border-style: solid;
+            border-width: 25px 0 25px 40px;
+
+            &:hover {
+                border-color: transparent transparent transparent #404040;
+            }
+        }
+        
+        .paused {
+            border-style: double;
+            border-width: 0px 0 0px 40px;
+        }
+        
+        .player {
+            width: 80%;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            margin: 0 auto;
+        }
+        
+        .y.label {
+            font-size: 20px;
+        }
+        
+        .x.axis {   
+            font-size: 20px;
+        }
+        
+        .y.axis {
+            font-size: 20px;
+        }
+        
+        .sliderlim {
+            font-size: 20px;
+            margin: 0;
+            padding-left: 5px;
+            padding-right: 5px;
+        }
+        
+        .sliderlim.left {
+            float: left;
+        }
+        
+        .sliderlim.right {
+            float: right;
+        }
+        
+        #selected-year {
+            font-size: 20px;
+        }
+        
+        #vis1-container {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            justify-content: center;
+        }
+        
+        #legend-container {
+            margin-bottom: auto;
+        }
+        
+        .subtitle {
+            padding: 0;
+            margin: 0;
+        }
+        
+        .substat {
+            color: #dc3a22;
+            font-size: 20px;
+        }
+        
+        .tool.btn {
+            border-radius: 5px;
+            color: white;
+            background-color: #8e6d65;
+            padding: 10px;
+            font-size: 16px;
+            border: none;
+        } 
+        
+        .tool.btn:hover{
+            background-color: #5b4d4e;
+        }
+        
+        .select-countries {
+            margin-top: 50px;
+        }
+        
+        .tool-desc {
+            font-size:16px;
+            margin: 2px;
+        }
+        
+
+	</style>
+	
+	<script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<!--
+    <script language="JavaScript" type="text/javascript" src="/js/jquery-ui-personalized-1.5.2.packed.js"></script>
+    <script language="JavaScript" type="text/javascript" src="/js/sprinkle.js"></script>
+-->
+    
+	<script>
+        var vw = document.documentElement.clientWidth; // get viewport width 
+        var vh = document.documentElement.clientHeight; // get viewport height
+        console.log(`VIEWPORT WIDTH: ${vw}, VIEWPORT HEIGHT: ${vh}`);
+        
+        var full_data, data, yearData;	// to hold the data, and data for a specific year
+        var width, height;
+        var country_codes;
+        var circles; // to hold the set of cirlces
+        var xScale, yScale, rScale;
+        var curYear, yearStart, yearEnd;
+        var drawArea, legend;
+        var xBinWidth;
+        var state = {
+            playing: false,
+            selectedCountry: "Afghanistan",
+            countryList: ["United States", "China", "Russia", "Germany", "Japan"],
+        };
+        
+        // define variables for x and y axes
+//        var xVar = "mean_hi";
+        var yVar = "co2_share"; // hmm, also with 
+        var rVar = "co2_tot";
+        var animationTimer;
+        
+		
+		// function to get the data from file
+        
+		function getData() {
+			d3.csv("data/all_countries_pol_stats2.csv").then(function(d) {
+                full_data = d;
+                draw();
+			});
+		}
+        
+        function filterData() {
+            data = full_data.filter(d => { return state.countryList.indexOf(d["country"]) >= 0 });
+        }
+        
+        function createDrawArea() {
+            drawArea = d3.select("#drawArea")
+                .attr("width", 1200)
+                .attr("height", 800);
+            
+            width = Number(drawArea.attr("width"));
+            height = Number(drawArea.attr("height"));
+        }
+        
+        function draw() {
+            filterData();
+            createDrawArea();
+            
+            var padding = 70;
+            
+            
+            // minimum and maximum years in the data
+            yearStart = 1751; // Number(d3.min(data, function(d){return d["year"]}));
+            yearEnd = 2014; // Number(d3.max(data, function(d){return d["year"]}));
+
+            
+            var yMin = d3.min(data, d => { return +d[yVar] });
+            var yMax = d3.max(data, d => { return +d[yVar] });
+            
+            
+            // minimum and maximum rVar values
+            var rMin = d3.min(data, d => { return +d[rVar] });
+            var rMax = d3.max(data, d => { return +d[rVar] });
+            
+            curYear = yearStart;
+            
+            // create x scale
+            // x axis is mean stringency
+            xScale = d3.scaleBand()
+                .domain(state.countryList)
+                .range([padding, width - padding]);
+            
+            xBinWidth = xScale.bandwidth();
+
+            // add x scale to x axis
+            var xAxis = d3.axisBottom()
+                .scale(xScale);
+    
+            // append group and insert x axis
+            drawArea.append("g")
+                .attr("transform", `translate(0, ${height - padding})`)
+                .attr("class","x axis")
+                .call(xAxis);
+            
+            // create y scale
+            yScale = d3.scaleLinear()
+                .domain([yMin, yMax])
+                .range([height - padding, padding]);
+            
+            // add y scale to y axis
+            var yAxis = d3.axisLeft()
+                .scale(yScale);
+            
+            // y axis label
+            drawArea.append("text")
+                .attr("class", "y label")
+                .attr("text-anchor", "end")
+                .attr("y", 0)
+                .attr("dy", ".75em")
+                .attr("transform", "rotate(-90)")
+                .text("contribution to total global CO2 emissions to date (%)");
+
+            // append group and insert y axis
+            drawArea.append("g")
+                .attr("transform", `translate(${padding}, 0)`)
+                .attr("class", "y axis")
+                .call(yAxis);
+            
+            // create r scale
+            rScale = d3.scaleSqrt()
+                .domain([0, 10300000])
+                .range([0, 100]);
+                
+            drawCircles();
+            curYear += 1;
+            
+            legend = drawLegend();
+        }
+        
+        function redraw() {
+            drawArea.selectAll("*").remove();
+            legend.selectAll("*").remove();
+            draw();
+        }
+        
+        function startAnimation() {
+            animationTimer = setInterval(animate, 50);
+        }
+        
+        function stopAnimation() {
+            clearInterval(animationTimer);
+        }
+        
+        function animate() {
+            console.log("animate");
+            if (curYear <= yearEnd) {
+                drawCircles();
+                
+                // update year
+//                drawArea.select("#title")
+//                    .text(`${curYear}`);
+                
+                // update yearSlider
+                var yearSlider = document.getElementById("yearSlider");
+                yearSlider.value = curYear;
+//                var output = document.getElementById("selected-year");
+//                output.innerHTML = curYear;
+                
+                updateSubtitle();
+                
+                curYear += 1;
+            } else {
+                stopAnimation();
+            }
+        }
+        
+        function updateSubtitle() {
+                // update subtitle 
+            var subtitleYear = document.getElementById("subtitle-year");
+            subtitleYear.innerHTML = curYear;
+                
+            var stats = getSubtitleStats();
+            var subtitleCO2Share = document.getElementById("subtitle-percent");
+            subtitleCO2Share.innerHTML = `${stats[0]}%`;
+            
+            var subtitleTotal = document.getElementById("subtitle-total");
+            subtitleTotal.innerHTML = `${stats[1] * 1000}`; // data is measured in 1000 metric tons of CO2, add 3 0s to string to make loading simpler
+        }
+        
+        function getSubtitleStats() {
+            // get data in cur year
+            fdata = data.filter(d => { return +d["year"] == curYear});
+            
+            totCO2Shares = fdata.map(d => { 
+                return +d["co2_share"];
+            });
+            
+            emissionsInYear = fdata.map(d => {
+                return +d["co2_tot"];
+            });
+            
+            totShares = d3.sum(totCO2Shares).toFixed(2);
+            totEmissions = Math.round(d3.sum(emissionsInYear));
+            return [totShares, totEmissions];
+        }
+        
+
+        
+        function drawCircles() {
+            // filter data based on current year
+            yearData = data.filter((d) => { return +d["year"] <= curYear }); // <= when you want to see paths
+            
+            // remove old circles
+            drawArea.selectAll('circle').remove();
+            
+            // draw circles
+            circles = drawArea.selectAll("circle")
+				.data(yearData);
+            
+            circles.enter().append("circle")
+                .merge(circles)
+                .attr("cx", (d) => {
+                        var x = xScale(d["country"]) + xBinWidth/2;
+                        return x;
+					})
+					.attr("cy", (d) => {
+                        var y = yScale(d[yVar]);
+						return y;
+					})
+					.attr("r", (d) => {
+                        // use constant value right, later scale to GHG emmissions per captia for each country
+                        var a = rScale(d[rVar]);
+                        var r = a;//getRadius(a);
+                        return r;
+					})
+                    .attr("class", d => {
+                        year = +d["year"];
+                        if (year == curYear) {
+                            return "lastCircle";
+                        } else {
+                            return "countryCircle";
+                        }
+                    });
+        }
+        
+        function updatePositions() {
+            var circles = d3.selectAll("circle")
+                .data(yearData);
+            
+            circles.transition().duration(250)
+                .attr("cx", (d) => {
+                    var x = xScale(d[xVar]);
+                    return x;
+                })
+                .attr("cy", (d) => {
+                    var y = yScale(d[yVar]);
+					return y;
+                })
+                .attr("r", (d) => {
+                    var a = rScale(d[rVar]); // think about using this as area then converting to area
+                    var r = getRadius(a);
+                    return r;
+                })
+        }
+        
+        function getRadius(area) {
+            return Math.sqrt(area / Math.PI);
+        }
+        
+        function highlight(d) {
+            var circle = d3.select(this)
+                .style("stroke","yellow")
+                .style("stroke-width","3");
+            
+            d3.select("#title").text(d["country"]);
+            
+            d3.select("#tooltip")
+                .style("top", d3.event.pageY + 5 + "px")
+                .style("left", d3.event.pageX + 5 + "px")
+                .style("visibility","visible");
+        }
+        
+        function unhighlight(d,i) {
+            var circle = d3.select(this)
+                .style("stroke","")
+                .style("stroke-width","");
+            
+            d3.select("#tooltip")
+                .style("visibility","hidden");
+        }
+        
+        function sliderChange(updatedYear) {
+            curYear = updatedYear;
+            drawCircles();
+            curYear+=1;
+        }
+        
+        // modified yet taken from https://www.d3-graph-gallery.com/graph/bubble_legend.html
+        function drawLegend() {
+            
+            // append the svg object to the body of the page
+            var legendPadding = {
+                top: 30,
+                bottom: 10,
+                left: 10,
+                right: 10,
+            };
+            var legendHeight = 200;
+            var legendWidth = 200;
+            
+
+            // The scale you use for bubble size
+            // rScale;
+            
+            var svg = d3.select("#legend-container")
+                .attr("width", legendWidth)
+                .attr("height", legendHeight)
+
+            // Add legend: circles
+            var valuesToShow = [10000, 1000000, 5000000];
+            var maxR = rScale(valuesToShow[2]);
+            var minR = rScale(valuesToShow[0]);
+            
+            var xCircle = maxR + legendPadding.right;
+            var xLabel = xCircle + 75;
+            var yCircle = 2 * maxR + legendPadding.top;
+            
+            svg
+              .selectAll("legend")
+              .data(valuesToShow)
+              .enter()
+              .append("circle")
+                .attr("cx", xCircle)
+                .attr("cy", function(d){ return yCircle - rScale(d) } )
+                .attr("r", function(d){ return rScale(d) })
+                .attr("class", "countryCircle");
+
+            // Add legend: segments
+            svg
+              .selectAll("legend")
+              .data(valuesToShow)
+              .enter()
+              .append("line")
+                .attr('x1', function(d){ return xCircle + rScale(d) } )
+                .attr('x2', xLabel)
+                .attr('y1', function(d){ return yCircle - rScale(d) } )
+                .attr('y2', function(d){ return yCircle - rScale(d) } )
+                .attr('stroke', 'black')
+                .style('stroke-dasharray', ('2,2'))
+
+            // Add legend: labels
+            svg
+              .selectAll("legend")
+              .data(valuesToShow)
+              .enter()
+              .append("text")
+                .attr('x', xLabel)
+                .attr('y', function(d){ return yCircle - rScale(d) } )
+                .text( function(d){ return d } )
+                .style("font-size", 10)
+                .attr('alignment-baseline', 'middle')
+            
+            // add title
+            svg.append("text")
+                .attr("class", "legend-title")
+                .attr("x", 10)
+                .attr("dy", 10)
+                .text("total CO2 emissions in given year");
+            
+            // add title
+            svg.append("text")
+                .attr("class", "legend-title")
+                .attr("x", 10)
+                .attr("dy", 22)
+                .text("(1000 metric tons of CO2)");
+            
+            return svg;
+        }
+        
+        function changeSelectedCountry(e) {
+            state.selectedCountry = e.value;
+        }
+        
+        function addCountry() {
+            // check country list size
+            if (state.countryList.length < 10) {
+                if (state.countryList.indexOf(state.selectedCountry) < 0) {
+                    state.countryList.push(state.selectedCountry);
+                    redraw();
+                } else {
+                    alert(`${state.selectedCountry} has already been added.`)
+                }
+            } else {
+                alert("The maximum number of countries are added.");
+            }
+        }
+        
+        function removeCountry() {
+            console.log('remove');
+            // check country list size
+            if (state.countryList.length > 1) {
+                var index = state.countryList.indexOf(state.selectedCountry);
+                if (index >= 0) {
+                    state.countryList.splice(index, 1);
+                    redraw();
+                } else {
+                    alert(`${state.selectedCountry} has not yet been added.`)
+                }
+            } else {
+                alert("The maximum number of countries are removed.");
+            }
+        }
+        
+        function changeCountries(option) {
+            var mostResponsible = ["United States", "China", "Russia", "Germany", "Japan"];
+            var mostVulnerable = ["Vietnam", "Bangladesh", "Maldives", "Mauritania", "Namibia", "Tuvalu"];
+            
+            switch (option) {
+                case "vulnerable":
+                    state.countryList = mostVulnerable;
+                    break;
+                case "responsible":
+                    state.countryList = mostResponsible;
+                    break;
+            }
+            
+            redraw();
+        }
+        
+        // runs code when the DOM is fully loaded
+        $(document).ready(function() {
+            // for animating play button
+            var btn = $(".button");
+            btn.click(function() {
+                btn.toggleClass("paused");
+                state.playing = !state.playing;
+                console.log(state.playing);
+                if (state.playing) {
+                    startAnimation();
+                } else {
+                    stopAnimation();
+                }
+                return false;
+            });
+            
+            // for animating slider
+            var yearSlider = document.getElementById("yearSlider");
+//            var output = document.getElementById("selected-year");
+//            output.innerHTML = yearSlider.value;
+
+            yearSlider.oninput = () => {
+                var updatedYear = yearSlider.value;
+//                output.innerHTML = updatedYear;
+                sliderChange(+updatedYear); // convert updated year to a number
+                updateSubtitle();
+            }
+        });
+        
+        
+        
+	</script>
+</head>
+<body onload="getData()">
+    <div class="vis-container">
+        <p id="title">who's responsible for climate change?</p>
+        <p class="subtitle">as of <span class="substat" id="subtitle-year">1751</span>, the countries shown below were responsible for <span class="substat" id="subtitle-percent">0%</span> of all the world's CO2 emissions</p>
+        <p class="subtitle">in that year alone, they emitted <span class="substat" id="subtitle-total">0</span> metric tons of CO2</p>
+        <div id="vis1-container">
+            <svg id="drawArea"></svg> 
+            <div id="rightPanel">
+                <svg id="legend-container"></svg>
+                <p class="tool-desc">switch between preconfigured states</p>
+                <div>
+                    <button class="tool btn" onclick="changeCountries('responsible');">Most Responsible</button>
+                    <button class="tool btn" onclick="changeCountries('vulnerable');">Most Vulnerable</button>
+                </div>
+                <div class="select-countries">
+                    <p class="tool-desc">edit displayed countries</p>
+                        <select id="size-sel" onchange="changeSelectedCountry(this);">
+                            <option value='Afghanistan' selected="selected">Afghanistan</option>
+                            <option value='Albania'>Albania</option>
+                            <option value='Algeria'>Algeria</option>
+                            <option value='Angola'>Angola</option>
+                            <option value='Antigua and Barbuda'>Antigua and Barbuda</option>
+                            <option value='Argentina'>Argentina</option>
+                            <option value='Armenia'>Armenia</option>
+                            <option value='Australia'>Australia</option>
+                            <option value='Austria'>Austria</option>
+                            <option value='Azerbaijan'>Azerbaijan</option>
+                            <option value='Bahamas'>Bahamas</option>
+                            <option value='Bahrain'>Bahrain</option>
+                            <option value='Bangladesh'>Bangladesh</option>
+                            <option value='Barbados'>Barbados</option>
+                            <option value='Belarus'>Belarus</option>
+                            <option value='Belgium'>Belgium</option>
+                            <option value='Belize'>Belize</option>
+                            <option value='Benin'>Benin</option>
+                            <option value='Bhutan'>Bhutan</option>
+                            <option value='Bolivia'>Bolivia</option>
+                            <option value='Bosnia and Herzegovina'>Bosnia and Herzegovina</option>
+                            <option value='Botswana'>Botswana</option>
+                            <option value='Brazil'>Brazil</option>
+                            <option value='Brunei'>Brunei</option>
+                            <option value='Bulgaria'>Bulgaria</option>
+                            <option value='Burkina Faso'>Burkina Faso</option>
+                            <option value='Burundi'>Burundi</option>
+                            <option value='Cambodia'>Cambodia</option>
+                            <option value='Cameroon'>Cameroon</option>
+                            <option value='Canada'>Canada</option>
+                            <option value='Cape Verde'>Cape Verde</option>
+                            <option value='Central African Republic'>Central African Republic</option>
+                            <option value='Chad'>Chad</option>
+                            <option value='Chile'>Chile</option>
+                            <option value='China'>China</option>
+                            <option value='Colombia'>Colombia</option>
+                            <option value='Congo, Dem. Rep.'>Congo, Dem. Rep.</option>
+                            <option value='Costa Rica'>Costa Rica</option>
+                            <option value='Cote d'Ivoire'>Cote d'Ivoire</option>
+                            <option value='Croatia'>Croatia</option>
+                            <option value='Cuba'>Cuba</option>
+                            <option value='Cyprus'>Cyprus</option>
+                            <option value='Czech Republic'>Czech Republic</option>
+                            <option value='Denmark'>Denmark</option>
+                            <option value='Djibouti'>Djibouti</option>
+                            <option value='Dominica'>Dominica</option>
+                            <option value='Dominican Republic'>Dominican Republic</option>
+                            <option value='Ecuador'>Ecuador</option>
+                            <option value='Egypt'>Egypt</option>
+                            <option value='El Salvador'>El Salvador</option>
+                            <option value='Equatorial Guinea'>Equatorial Guinea</option>
+                            <option value='Eritrea'>Eritrea</option>
+                            <option value='Estonia'>Estonia</option>
+                            <option value='Ethiopia'>Ethiopia</option>
+                            <option value='Fiji'>Fiji</option>
+                            <option value='Finland'>Finland</option>
+                            <option value='France'>France</option>
+                            <option value='Gabon'>Gabon</option>
+                            <option value='Gambia'>Gambia</option>
+                            <option value='Georgia'>Georgia</option>
+                            <option value='Germany'>Germany</option>
+                            <option value='Ghana'>Ghana</option>
+                            <option value='Greece'>Greece</option>
+                            <option value='Grenada'>Grenada</option>
+                            <option value='Guatemala'>Guatemala</option>
+                            <option value='Guinea'>Guinea</option>
+                            <option value='Guinea-Bissau'>Guinea-Bissau</option>
+                            <option value='Guyana'>Guyana</option>
+                            <option value='Haiti'>Haiti</option>
+                            <option value='Honduras'>Honduras</option>
+                            <option value='Hungary'>Hungary</option>
+                            <option value='Iceland'>Iceland</option>
+                            <option value='India'>India</option>
+                            <option value='Indonesia'>Indonesia</option>
+                            <option value='Iran'>Iran</option>
+                            <option value='Iraq'>Iraq</option>
+                            <option value='Ireland'>Ireland</option>
+                            <option value='Israel'>Israel</option>
+                            <option value='Italy'>Italy</option>
+                            <option value='Jamaica'>Jamaica</option>
+                            <option value='Japan'>Japan</option>
+                            <option value='Jordan'>Jordan</option>
+                            <option value='Kazakhstan'>Kazakhstan</option>
+                            <option value='Kenya'>Kenya</option>
+                            <option value='Kiribati'>Kiribati</option>
+                            <option value='Kuwait'>Kuwait</option>
+                            <option value='Kyrgyz Republic'>Kyrgyz Republic</option>
+                            <option value='Lao'>Lao</option>
+                            <option value='Latvia'>Latvia</option>
+                            <option value='Lebanon'>Lebanon</option>
+                            <option value='Lesotho'>Lesotho</option>
+                            <option value='Liberia'>Liberia</option>
+                            <option value='Libya'>Libya</option>
+                            <option value='Liechtenstein'>Liechtenstein</option>
+                            <option value='Lithuania'>Lithuania</option>
+                            <option value='Luxembourg'>Luxembourg</option>
+                            <option value='Madagascar'>Madagascar</option>
+                            <option value='Malawi'>Malawi</option>
+                            <option value='Malaysia'>Malaysia</option>
+                            <option value='Maldives'>Maldives</option>
+                            <option value='Mali'>Mali</option>
+                            <option value='Malta'>Malta</option>
+                            <option value='Marshall Islands'>Marshall Islands</option>
+                            <option value='Mauritania'>Mauritania</option>
+                            <option value='Mauritius'>Mauritius</option>
+                            <option value='Mexico'>Mexico</option>
+                            <option value='Micronesia, Fed. Sts.'>Micronesia, Fed. Sts.</option>
+                            <option value='Moldova'>Moldova</option>
+                            <option value='Mongolia'>Mongolia</option>
+                            <option value='Montenegro'>Montenegro</option>
+                            <option value='Morocco'>Morocco</option>
+                            <option value='Mozambique'>Mozambique</option>
+                            <option value='Myanmar'>Myanmar</option>
+                            <option value='Namibia'>Namibia</option>
+                            <option value='Nauru'>Nauru</option>
+                            <option value='Nepal'>Nepal</option>
+                            <option value='Netherlands'>Netherlands</option>
+                            <option value='New Zealand'>New Zealand</option>
+                            <option value='Nicaragua'>Nicaragua</option>
+                            <option value='Niger'>Niger</option>
+                            <option value='Nigeria'>Nigeria</option>
+                            <option value='North Korea'>North Korea</option>
+                            <option value='North Macedonia'>North Macedonia</option>
+                            <option value='Norway'>Norway</option>
+                            <option value='Oman'>Oman</option>
+                            <option value='Pakistan'>Pakistan</option>
+                            <option value='Palau'>Palau</option>
+                            <option value='Panama'>Panama</option>
+                            <option value='Papua New Guinea'>Papua New Guinea</option>
+                            <option value='Paraguay'>Paraguay</option>
+                            <option value='Peru'>Peru</option>
+                            <option value='Philippines'>Philippines</option>
+                            <option value='Poland'>Poland</option>
+                            <option value='Portugal'>Portugal</option>
+                            <option value='Qatar'>Qatar</option>
+                            <option value='Romania'>Romania</option>
+                            <option value='Russia'>Russia</option>
+                            <option value='Rwanda'>Rwanda</option>
+                            <option value='Samoa'>Samoa</option>
+                            <option value='Sao Tome and Principe'>Sao Tome and Principe</option>
+                            <option value='Saudi Arabia'>Saudi Arabia</option>
+                            <option value='Senegal'>Senegal</option>
+                            <option value='Serbia'>Serbia</option>
+                            <option value='Seychelles'>Seychelles</option>
+                            <option value='Sierra Leone'>Sierra Leone</option>
+                            <option value='Singapore'>Singapore</option>
+                            <option value='Slovak Republic'>Slovak Republic</option>
+                            <option value='Slovenia'>Slovenia</option>
+                            <option value='Solomon Islands'>Solomon Islands</option>
+                            <option value='Somalia'>Somalia</option>
+                            <option value='South Africa'>South Africa</option>
+                            <option value='South Korea'>South Korea</option>
+                            <option value='South Sudan'>South Sudan</option>
+                            <option value='Spain'>Spain</option>
+                            <option value='Sri Lanka'>Sri Lanka</option>
+                            <option value='St. Kitts and Nevis'>St. Kitts and Nevis</option>
+                            <option value='St. Lucia'>St. Lucia</option>
+                            <option value='St. Vincent and the Grenadines'>St. Vincent and the Grenadines</option>
+                            <option value='Sudan'>Sudan</option>
+                            <option value='Suriname'>Suriname</option>
+                            <option value='Swaziland'>Swaziland</option>
+                            <option value='Sweden'>Sweden</option>
+                            <option value='Switzerland'>Switzerland</option>
+                            <option value='Syria'>Syria</option>
+                            <option value='Tajikistan'>Tajikistan</option>
+                            <option value='Tanzania'>Tanzania</option>
+                            <option value='Thailand'>Thailand</option>
+                            <option value='Timor-Leste'>Timor-Leste</option>
+                            <option value='Togo'>Togo</option>
+                            <option value='Tonga'>Tonga</option>
+                            <option value='Trinidad and Tobago'>Trinidad and Tobago</option>
+                            <option value='Tunisia'>Tunisia</option>
+                            <option value='Turkey'>Turkey</option>
+                            <option value='Turkmenistan'>Turkmenistan</option>
+                            <option value='Tuvalu'>Tuvalu</option>
+                            <option value='Uganda'>Uganda</option>
+                            <option value='Ukraine'>Ukraine</option>
+                            <option value='United Arab Emirates'>United Arab Emirates</option>
+                            <option value='United Kingdom'>United Kingdom</option>
+                            <option value='United States'>United States</option>
+                            <option value='Uruguay'>Uruguay</option>
+                            <option value='Uzbekistan'>Uzbekistan</option>
+                            <option value='Vanuatu'>Vanuatu</option>
+                            <option value='Venezuela'>Venezuela</option>
+                            <option value='Vietnam'>Vietnam</option>
+                            <option value='Yemen'>Yemen</option>
+                            <option value='Zambia'>Zambia</option>
+                            <option value='Zimbabwe'>Zimbabwe</option> 
+                    </select>                
+                    <div style="margin-top: 5px;">
+                        <button class="tool btn" onclick="addCountry();">Add</button>
+                        <button class="tool btn" onclick="removeCountry();">Remove</button>
+                    </div>
+                </div>
+            </div>
+        </div>    
+    <!--    <p id="current-year"><span id="selected-year"></span></p>-->
+        <div class="player">
+            <div>
+                <button class="button"></button>
+            </div>
+            <div class="slidecontainer">
+                <span class="sliderlim left">1751</span>
+                <input type="range" min="1751" max="2014" value="50" class="slider" id="yearSlider">
+                <span class="sliderlim right">2014</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

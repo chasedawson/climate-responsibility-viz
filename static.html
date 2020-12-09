@@ -1,0 +1,621 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Global Climate Policy</title>
+	<style>
+        body {
+			font-family: Arial, Helvetica, sans-serif;
+			font-size: 12px;
+			background-color: #ffffff;
+			text-align: center;
+		}
+        
+        #title {
+            font-size: 32px;
+            padding: 0px;
+            margin: 0px;
+        }
+        
+        .countryCircle {
+			fill: black;
+			opacity: 0.05;
+		}
+        
+        .lastCircle {
+            fill: red;
+            opacity: 0.5;
+        }
+        
+        .slidecontainer {
+            display: flex;
+            flex-direction: row;
+            width: 100%; /* Width of the outside container */
+        }
+
+        /* The slider itself */
+        .slider {
+            -webkit-appearance: none;  /* Override default CSS styles */
+            appearance: none;
+            width: 100%; /* Full-width */
+            height: 15px; /* Specified height */
+            border-radius: 5px;
+            background: #d3d3d3; /* Grey background */
+            outline: none; /* Remove outline */
+            opacity: 0.7; /* Set transparency (for mouse-over effects on hover) */
+            -webkit-transition: .2s; /* 0.2 seconds transition on hover */
+            transition: opacity .2s;
+        }
+
+        /* Mouse-over effects */
+        .slider:hover {
+            opacity: 1; /* Fully shown on mouse-over */
+        }
+
+        /* The slider handle (use -webkit- (Chrome, Opera, Safari, Edge) and -moz- (Firefox) to override default look) */
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none; /* Override default look */
+            appearance: none;
+            width: 25px; /* Set a specific slider handle width */
+            height: 25px; /* Slider handle height */
+            border-radius: 50%;
+            background: red; 
+            cursor: pointer; /* Cursor on hover */
+        }
+
+        .slider::-moz-range-thumb {
+            width: 25px; /* Set a specific slider handle width */
+            height: 25px; /* Slider handle height */
+            border-radius: 50%;
+            background: red; 
+            cursor: pointer; /* Cursor on hover */
+        }
+        
+        /* taken from https://css-tricks.com/making-pure-css-playpause-button/ */
+        .button {
+            border: 0;
+            background: transparent;
+            box-sizing: border-box;
+            width: 0;
+            height: 50px;
+
+            border-color: transparent transparent transparent #202020;
+            transition: 100ms all ease;
+            cursor: pointer;
+
+            /* play state */
+            border-style: solid;
+            border-width: 25px 0 25px 40px;
+
+            &:hover {
+                border-color: transparent transparent transparent #404040;
+            }
+        }
+        
+        .paused {
+            border-style: double;
+            border-width: 0px 0 0px 40px;
+        }
+        
+        .player {
+            width: 80%;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            margin: 0 auto;
+        }
+        
+        .y.label {
+            font-size: 20px;
+        }
+        
+        .x.axis {   
+            font-size: 20px;
+        }
+        
+        .y.axis {
+            font-size: 20px;
+        }
+        
+        .sliderlim {
+            font-size: 20px;
+            margin: 0;
+            padding-left: 5px;
+            padding-right: 5px;
+        }
+        
+        .sliderlim.left {
+            float: left;
+        }
+        
+        .sliderlim.right {
+            float: right;
+        }
+        
+        #selected-year {
+            font-size: 20px;
+        }
+        
+        #vis-container {
+            display: grid;
+            grid-template-rows: 4;
+            grid-template-columns: 3;
+            padding-right: 20px;
+
+        }
+        
+        #vis1 {
+            grid-row-start: 2;
+        }
+        
+        #vis2 {
+            grid-row-start: 4;
+        }
+        
+        #subtitle1-container {
+            grid-row-start: 1;
+        }
+        
+        #subtitle1-container > * {
+            padding: 0;
+            margin: 0;
+        }
+        
+        #subtitle2-container {
+            grid-row-start: 3;
+        }
+        
+        #subtitle2-container > * {
+            padding: 0;
+            margin: 0;
+        }
+        
+        .vis2.comments {
+            grid-row-start: 4;
+            grid-column-start 2;
+            padding: 20px;
+            text-align: left;
+        }
+        
+        .vis2.comments > p {
+            font-size: 22px;
+        }
+        
+        #rightPanel {
+            margin-bottom: auto;
+            grid-row: 2;
+            grid-column: 2;
+        }
+        
+        .subtitle {
+            padding: 0;
+            margin: 0;
+        }
+        
+        .substat {
+            color: red;
+            font-size: 20px;
+        }
+        
+
+	</style>
+	
+	<script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+<!--
+    <script language="JavaScript" type="text/javascript" src="/js/jquery-ui-personalized-1.5.2.packed.js"></script>
+    <script language="JavaScript" type="text/javascript" src="/js/sprinkle.js"></script>
+-->
+    
+	<script>
+        var full_data, data, yearData;	// to hold the data, and data for a specific year
+        var width, height;
+        var country_codes;
+        var circles; // to hold the set of cirlces
+        var xScale, yScale, rScale;
+        var curYear, yearStart, yearEnd;
+        var drawArea, legend;
+        var xBinWidth;
+        var state = {
+            playing: false,
+            selectedCountry: "Afghanistan",
+            countryList1: ["United States", "China", "Russia", "Germany", "Japan"],
+            countryList2: ["Vietnam", "Bangladesh", "Maldives", "Mauritania", "Namibia", "Tuvalu"]
+        };
+        
+        // define variables for x and y axes
+//        var xVar = "mean_hi";
+        var yVar = "co2_share"; // hmm, also with 
+        var rVar = "co2_tot";
+        var animationTimer;
+        
+		
+		// function to get the data from file
+        
+		function getData() {
+			d3.csv("data/all_countries_pol_stats2.csv").then(function(d) {
+                full_data = d;
+                draw(1);
+                draw(2);
+			});
+		}
+        
+        function filterData(num) {
+            var list;
+            if (num == 1) {
+                list = state.countryList1;
+            } 
+            
+            if (num == 2) {
+                list = state.countryList2;
+            }
+            data = full_data.filter(d => { return list.indexOf(d["country"]) >= 0 });
+            return list;
+        }
+        
+        function createDrawArea(num) {
+            drawArea = d3.select(`#drawArea${num}`);
+            width = Number(drawArea.attr("width"));
+            height = Number(drawArea.attr("height"));
+        }
+        
+        function draw(num) {
+            var countryList = filterData(num);
+            createDrawArea(num);
+            
+            var padding = 80;
+            
+            
+            // minimum and maximum years in the data
+            yearStart = 1751; // Number(d3.min(data, function(d){return d["year"]}));
+            yearEnd = 2014; // Number(d3.max(data, function(d){return d["year"]}));
+
+            
+            var yMin = d3.min(data, d => { return +d[yVar] });
+            var yMax = d3.max(data, d => { return +d[yVar] });
+            
+            
+            // minimum and maximum rVar values
+            var rMin = d3.min(data, d => { return +d[rVar] });
+            var rMax = d3.max(data, d => { return +d[rVar] });
+            
+            curYear = yearEnd;
+            
+            // create x scale
+            // x axis is mean stringency
+            xScale = d3.scaleBand()
+                .domain(countryList)
+                .range([padding, width - padding]);
+            
+            xBinWidth = xScale.bandwidth();
+
+            // add x scale to x axis
+            var xAxis = d3.axisBottom()
+                .scale(xScale);
+    
+            // append group and insert x axis
+            drawArea.append("g")
+                .attr("transform", `translate(0, ${height - padding})`)
+                .attr("class","x axis")
+                .call(xAxis);
+            
+            // create y scale
+            yScale = d3.scaleLinear()
+                .domain([yMin, yMax])
+                .range([height - padding, padding]);
+            
+            // add y scale to y axis
+            var yAxis = d3.axisLeft()
+                .scale(yScale);
+            
+            // y axis label
+            drawArea.append("text")
+                .attr("class", "y label")
+                .attr("text-anchor", "end")
+                .attr("y", 0)
+                .attr("dy", ".75em")
+                .attr("transform", "rotate(-90)")
+                .text("contribution to total global CO2 emissions to date (%)");
+
+            // append group and insert y axis
+            drawArea.append("g")
+                .attr("transform", `translate(${padding}, 0)`)
+                .attr("class", "y axis")
+                .call(yAxis);
+            
+            // create r scale
+            rScale = d3.scaleSqrt()
+                .domain([0, 10300000])
+                .range([0, 100]);
+                
+            drawCircles(num);
+//            curYear += 1;
+            
+            if (num == 1) {
+                legend = drawLegend();
+            }
+        }
+        
+        function redraw() {
+            drawArea.selectAll("*").remove();
+            legend.selectAll("*").remove();
+            draw();
+        }
+        
+        function startAnimation() {
+            animationTimer = setInterval(animate, 50);
+        }
+        
+        function stopAnimation() {
+            clearInterval(animationTimer);
+        }
+        
+        function animate() {
+            console.log("animate");
+            if (curYear <= yearEnd) {
+                drawCircles();
+                
+                // update year
+//                drawArea.select("#title")
+//                    .text(`${curYear}`);
+                
+                // update yearSlider
+                var yearSlider = document.getElementById("yearSlider");
+                yearSlider.value = curYear;
+//                var output = document.getElementById("selected-year");
+//                output.innerHTML = curYear;
+                
+                updateSubtitle();
+                
+                curYear += 1;
+            } else {
+                stopAnimation();
+            }
+        }
+        
+        function updateSubtitle(num) {
+                // update subtitle 
+            var id1 = `subtitle${num}-year`;
+            console.log(id1);
+            var subtitleYear = document.getElementById(id1);
+            subtitleYear.innerHTML = curYear;
+                
+            var stats = getSubtitleStats();
+            var subtitleCO2Share = document.getElementById(`subtitle${num}-percent`);
+            subtitleCO2Share.innerHTML = `${stats[0]}%`;
+            
+            var subtitleTotal = document.getElementById(`subtitle${num}-total`);
+            subtitleTotal.innerHTML = `${stats[1] * 1000}`; // data is measured in 1000 metric tons of CO2, add 3 0s to string to make loading simpler
+        }
+        
+        function getSubtitleStats() {
+            // get data in cur year
+            fdata = data.filter(d => { return +d["year"] == curYear});
+            
+            totCO2Shares = fdata.map(d => { 
+                return +d["co2_share"];
+            });
+            
+            emissionsInYear = fdata.map(d => {
+                return +d["co2_tot"];
+            });
+            
+            totShares = d3.sum(totCO2Shares).toFixed(2);
+            totEmissions = Math.round(d3.sum(emissionsInYear));
+            return [totShares, totEmissions];
+        }
+        
+
+        
+        function drawCircles(num) {
+            // filter data based on current year
+            yearData = data.filter((d) => { return +d["year"] <= curYear }); // <= when you want to see paths
+            
+            // remove old circles
+            drawArea.selectAll('circle').remove();
+            
+            // draw circles
+            circles = drawArea.selectAll("circle")
+				.data(yearData);
+            
+            circles.enter().append("circle")
+                .merge(circles)
+                .attr("cx", (d) => {
+                        var x = xScale(d["country"]) + xBinWidth/2;
+                        return x;
+					})
+					.attr("cy", (d) => {
+                        var y = yScale(d[yVar]);
+						return y;
+					})
+					.attr("r", (d) => {
+                        // use constant value right, later scale to GHG emmissions per captia for each country
+                        var a = rScale(d[rVar]);
+                        var r = a;//getRadius(a);
+                        return r;
+					})
+                    .attr("class", d => {
+                        year = +d["year"];
+                        if (year == curYear) {
+                            return "lastCircle";
+                        } else {
+                            return "countryCircle";
+                        }
+                    });
+            updateSubtitle(num);
+        }
+        
+        function updatePositions() {
+            var circles = d3.selectAll("circle")
+                .data(yearData);
+            
+            circles.transition().duration(250)
+                .attr("cx", (d) => {
+                    var x = xScale(d[xVar]);
+                    return x;
+                })
+                .attr("cy", (d) => {
+                    var y = yScale(d[yVar]);
+					return y;
+                })
+                .attr("r", (d) => {
+                    var a = rScale(d[rVar]); // think about using this as area then converting to area
+                    var r = getRadius(a);
+                    return r;
+                })
+        }
+        
+        function getRadius(area) {
+            return Math.sqrt(area / Math.PI);
+        }
+        
+        function highlight(d) {
+            var circle = d3.select(this)
+                .style("stroke","yellow")
+                .style("stroke-width","3");
+            
+            d3.select("#title").text(d["country"]);
+            
+            d3.select("#tooltip")
+                .style("top", d3.event.pageY + 5 + "px")
+                .style("left", d3.event.pageX + 5 + "px")
+                .style("visibility","visible");
+        }
+        
+        function unhighlight(d,i) {
+            var circle = d3.select(this)
+                .style("stroke","")
+                .style("stroke-width","");
+            
+            d3.select("#tooltip")
+                .style("visibility","hidden");
+        }
+        
+        function sliderChange(updatedYear) {
+            curYear = updatedYear;
+            drawCircles();
+            curYear+=1;
+        }
+        
+        // modified yet taken from https://www.d3-graph-gallery.com/graph/bubble_legend.html
+        function drawLegend() {
+            
+            // append the svg object to the body of the page
+            var legendPadding = {
+                top: 30,
+                bottom: 10,
+                left: 10,
+                right: 10,
+            };
+            var legendHeight = 200;
+            var legendWidth = 250;
+            
+
+            // The scale you use for bubble size
+            // rScale;
+            
+            var svg = d3.select("#legend-container")
+                .attr("width", legendWidth)
+                .attr("height", legendHeight)
+
+            // Add legend: circles
+            var valuesToShow = [10000, 1000000, 5000000];
+            var maxR = rScale(valuesToShow[2]);
+            var minR = rScale(valuesToShow[0]);
+            
+            var xCircle = maxR + legendPadding.right;
+            var xLabel = xCircle + 75;
+            var yCircle = 2 * maxR + legendPadding.top;
+            
+            svg
+              .selectAll("legend")
+              .data(valuesToShow)
+              .enter()
+              .append("circle")
+                .attr("cx", xCircle)
+                .attr("cy", function(d){ return yCircle - rScale(d) } )
+                .attr("r", function(d){ return rScale(d) })
+                .attr("class", "countryCircle");
+
+            // Add legend: segments
+            svg
+              .selectAll("legend")
+              .data(valuesToShow)
+              .enter()
+              .append("line")
+                .attr('x1', function(d){ return xCircle + rScale(d) } )
+                .attr('x2', xLabel)
+                .attr('y1', function(d){ return yCircle - rScale(d) } )
+                .attr('y2', function(d){ return yCircle - rScale(d) } )
+                .attr('stroke', 'black')
+                .style('stroke-dasharray', ('2,2'))
+
+            // Add legend: labels
+            svg
+              .selectAll("legend")
+              .data(valuesToShow)
+              .enter()
+              .append("text")
+                .attr('x', xLabel)
+                .attr('y', function(d){ return yCircle - rScale(d) } )
+                .text( function(d){ return d } )
+                .style("font-size", 10)
+                .attr('alignment-baseline', 'middle')
+            
+            // add title
+            svg.append("text")
+                .attr("class", "legend-title")
+                .attr("x", 10)
+                .attr("dy", 10)
+                .text("total CO2 emissions in given year");
+            
+            // add title
+            svg.append("text")
+                .attr("class", "legend-title")
+                .attr("x", 10)
+                .attr("dy", 22)
+                .text("(1000 metric tons of CO2)");
+            
+            return svg;
+        }
+                        
+        
+	</script>
+</head>
+<body onload="getData()">
+<!--    style="border:1px solid black"-->
+    <div id="vis-container">
+        <div id="subtitle1-container">
+            <p id="title">who's the most responsible for and least hurt by climate change?</p>
+            <p class="subtitle1">as of <span class="substat" id="subtitle1-year">1751</span>, the countries shown below were responsible for <span class="substat" id="subtitle1-percent">0%</span> of all the world's CO2 emissions</p>
+            <p class="subtitle1">in that year alone, they emitted <span class="substat" id="subtitle1-total">0</span> metric tons of CO2</p>
+        </div>
+        <div id="vis1">
+            <svg id="drawArea1" width="1200" height="600" ></svg> 
+        </div>
+        <div id="rightPanel">
+            <svg id="legend-container"></svg>
+            <p style="font-size: 14px; margin: 0; padding: 0;">yearly CO2 emissions are taken from 1751 to 2014 </p>
+            <p style="font-size: 14px; margin: 0; padding: 0;"> the most recent year is shown in <span style="color: red;">red</span> </p>
+        </div>
+        <div id="subtitle2-container">
+            <p id="title">who's the least responsible yet most hurt by climate change?</p>
+            <p class="subtitle2">as of <span class="substat" id="subtitle2-year">1751</span>, the countries shown below were responsible for <span class="substat" id="subtitle2-percent">0%</span> of all the world's CO2 emissions</p>
+            <p class="subtitle2">in that year alone, they emitted <span class="substat" id="subtitle2-total">0</span> metric tons of CO2</p>
+        </div>
+        <div id="vis2">
+            <svg id="drawArea2" width="1200" height="600" ></svg> 
+        </div>
+        <div class="vis2 comments">
+            <p>These countries have contributed less than 1 percent of the total global carbon dioxide emissions to date, 
+                yet they are predicted to be hit the hardest by the changing climate. In the next 20 to 30 years, these countries will experience
+                unprecented heat, food insecurity, and sea level rise. 
+            </p>
+            <p>
+                Much like a virus disproportionately affects society's most vulnerable communities,
+                climate change will disproportionately affect the countries who are the least responsible and most vulnerable.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
